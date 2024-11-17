@@ -39,7 +39,7 @@ if st.session_state.username is None:
 
     if st.button("Start Review Session"):
         if username.strip():
-            st.session_state.username = username.strip()  # Save the username in session_state
+            st.session_state.username = username.lower().strip()  # Save the username in session_state
             st.rerun()  # Reload the app to proceed to the review section
         else:
             st.warning("Please enter a valid name.")
@@ -92,7 +92,7 @@ else:
         if st.button("Submit Review"):
             review_data = {
                 "Status": action.lower(),
-                "reviewer": st.session_state.username,
+                "reviewer": st.session_state.username.lower().strip(),
                 "reviewed_text": edited_text if action == "Edit" else text_data["CodeSwitchedText"] if action == "Approve" else None,
             }
             save_review(doc_id, review_data)
