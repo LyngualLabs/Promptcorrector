@@ -36,6 +36,7 @@ if st.session_state.username is None:
     st.title("Welcome to the Code-Switched Text Reviewer")
     st.write("Please enter your name to begin the review session.")
     username = st.text_input("Your Name")
+    username = username.strip().lower()
 
     if st.button("Start Review Session"):
         if username.strip():
