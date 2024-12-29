@@ -170,6 +170,7 @@ else:
         # Fetch review data and compute analytics
         review_data = fetch_review_data()
         if not review_data.empty:
+            review_data =  review_data.fillna("unreviewed")
             original_review_data = review_data.copy()
             review_data = review_data[(review_data["reviewer"] != "unreviewed") & (review_data["Status"] != "reject")]
             status_count = review_data.groupby(['reviewer', 'Status']).size().unstack(fill_value=0)
@@ -198,8 +199,9 @@ else:
             st.write("Breakdown: Note that I've excluded your rejections, and this is data that has not been uploaded to the speech app")
 
             st.write(review_data["reviewer"].value_counts())
+            # st.write(original_review_data)
             unreviewed_df = original_review_data[original_review_data["reviewer"]=="unreviewed"]
-
+            # st.write(unreviewed_df)
             st.write("Sum total is: ", str(review_data["reviewer"].value_counts().sum()), "prompts")
             st.write("Unreviwed Prompts: ", str(len(unreviewed_df)), "prompts")
 
