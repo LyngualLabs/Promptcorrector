@@ -56,7 +56,7 @@ def get_review_history(username, limit):
 # Function to update a specific review
 def update_review(doc_id, edited_text):
     db.collection("stage_two_reviews").document(doc_id).update({
-        "CodeSwitchedText": edited_text,
+        "reviewed_text": edited_text,
         "Timestamp": datetime.utcnow()
     })
 
