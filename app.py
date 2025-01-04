@@ -115,7 +115,7 @@ if st.session_state.username is None:
             with st.spinner(f"Please hold up {username.split()[0].title()}, I'm setting up things for you!"):
                 time.sleep(10)
                 st.success("Done!")
-            st.rerun()  # Reload the app to proceed to the review section
+                st.rerun()  # Reload the app to proceed to the review section
 else:
     # Display the username and review count in the sidebar
     st.sidebar.title("Senior Reviewer")
