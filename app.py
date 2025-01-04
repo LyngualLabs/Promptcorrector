@@ -7,7 +7,10 @@ from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 # dotenv.load_dotenv()
+
+openai_api_key = os.environ['openai_key']
 
 # Initialize Firebase if it hasn't been initialized yet
 firebase_secrets = json.loads(os.environ['firebase_credentials'])
@@ -88,6 +91,11 @@ if st.session_state.username is None:
     if st.button("Start Review Session"):
         if username:
             st.session_state.username = username  # Save the username in session_state
+            from utils import generate_speech, play_audio, rephrase_text
+            greeting = f"Hey! {username.split()[0]} Welcome back. Happy prompt reviewing. Godspeed"
+            greeting = rephrase_text(openai_api_key,greeting)
+            generate_speech(greeting,openai_api_key=openai_api_key, output_file= "welcome.mp3")
+            play_audio("welcome.mp3")
             st.rerun()  # Reload the app to proceed to the review section
 else:
     # Display the username and review count in the sidebar

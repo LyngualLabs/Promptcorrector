@@ -5,6 +5,7 @@ import os
 
 # Initialize Firebase if it hasn't been initialized yet
 firebase_secrets = json.loads(os.environ['firebase_credentials'])
+openai_api_key = json.loads(os.environ['openai_key'])
 if not _apps:
     cred = credentials.Certificate(firebase_secrets)
     initialize_app(cred)
