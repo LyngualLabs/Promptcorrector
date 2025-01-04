@@ -6,6 +6,7 @@ import os
 from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
+import time
 
 
 # dotenv.load_dotenv()
@@ -78,6 +79,21 @@ def fetch_review_data():
     data["reviewer"] = data["reviewer"].str.strip()
     return data
 
+def play_audio(file_path):
+    """
+    Plays an audio file with autoplay enabled.
+    
+    Parameters:
+        file_path (str): Path to the audio file.
+    """
+    try:
+        st.audio(file_path, format="audio/mp3", autoplay=True)
+    except FileNotFoundError:
+        st.error(f"Error: The file '{file_path}' was not found. Please check the path.")
+    except Exception as e:
+        st.error(f"An unexpected error occurred: {e}")
+
+
 # Streamlit App Layout
 if "username" not in st.session_state:
     st.session_state.username = None
@@ -91,11 +107,14 @@ if st.session_state.username is None:
     if st.button("Start Review Session"):
         if username:
             st.session_state.username = username  # Save the username in session_state
-            from utils import generate_speech, play_audio, rephrase_text
+            from utils import generate_speech, rephrase_text
             greeting = f"Hey! {username.split()[0]} Welcome back. Happy prompt reviewing. Godspeed"
             greeting = rephrase_text(openai_api_key,greeting)
             generate_speech(greeting,openai_api_key=openai_api_key, output_file= "welcome.mp3")
             play_audio("welcome.mp3")
+            with st.spinner(f"Please hold up {username.split()[0].title()}, I'm setting up things for you!"):
+                time.sleep(10)
+                st.success("Done!")
             st.rerun()  # Reload the app to proceed to the review section
 else:
     # Display the username and review count in the sidebar

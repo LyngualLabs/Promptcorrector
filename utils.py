@@ -77,7 +77,7 @@ def rephrase_text(api_key, text_to_rephrase):
 
         # Extract the rephrased text from the response
         rephrased_text = response.choices[0].message.content.strip()
-        print(rephrased_text)
+        # print(rephrased_text)
         return rephrased_text
 
     except Exception as e:
