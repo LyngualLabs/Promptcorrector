@@ -4,4 +4,4 @@ matplotlib
 openai
 sounddevice
 librosa
-
+openpyxl
