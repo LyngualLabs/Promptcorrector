@@ -13,6 +13,7 @@ import time
 
 openai_api_key = os.environ['openai_key']
 
+
 # Initialize Firebase if it hasn't been initialized yet
 firebase_secrets = json.loads(os.environ['firebase_credentials'])
 if not _apps:
@@ -98,6 +99,15 @@ def play_audio(file_path):
 if "username" not in st.session_state:
     st.session_state.username = None
 
+# Ensure "upload_started" and "processed_file_path" exist in session_state
+if "upload_started" not in st.session_state:
+    st.session_state.upload_started = False
+if "processed_file_path" not in st.session_state:
+    st.session_state.processed_file_path = None
+if "dataframe" not in st.session_state:
+    st.session_state.dataframe = None
+
+
 if st.session_state.username is None:
     # Prompt user to enter their name
     st.title("Welcome to the Senior Reviewer App")
@@ -122,7 +132,7 @@ else:
     st.sidebar.write(f"Username: {st.session_state.username}")
 
     # Navigation Menu
-    page = st.sidebar.radio("Navigate", ["Review", "History", "Analytics"])
+    page = st.sidebar.radio("Navigate", ["Review", "History", "Analytics", "Upload Prompts"])
 
     if page == "Review":
         # Get the review count for the current reviewer
@@ -235,3 +245,86 @@ else:
 
         else:
             st.write("No review data available for analytics.")
+
+
+    elif page == "Upload Prompts":
+        st.title("Upload Prompts")
+
+        # File uploader
+        uploaded_file = st.file_uploader("Upload your prompt CSV file:", type=["csv", "xlsx"])
+        
+        if uploaded_file:
+            # Read the file based on its extension
+            if uploaded_file.name.endswith(".xlsx"):
+                df = pd.read_excel(uploaded_file, header=None)
+            elif uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file, header=None)
+
+            st.write("Preview of Uploaded Data:")
+            st.write(df.head())  # Show a preview of the uploaded file
+
+            # Perform sanity checks
+            errors = []
+            if len(df.columns) < 1:
+                errors.append("The uploaded file must have at least one column for prompts.")
+            elif df.isnull().any().any():
+                errors.append("The file contains missing values. Please clean the data before uploading.")
+
+            # Notify the user of errors
+            if errors:
+                st.error("Sanity checks failed! Please address the following issues:")
+                for error in errors:
+                    st.write(f"- {error}")
+                st.warning("You cannot proceed with processing or uploading until these issues are resolved.")
+            else:
+                # If sanity checks pass, process the data
+                st.success("Sanity checks passed!")
+                st.warning("Please and Please if you don't understand anything here Ask Victor! Don't Guess! Ask!")
+
+                # Prepare data
+                df.columns = ["code-switched-text"]
+                code_name = st.text_input("Enter the nick name or first name of the Prompt Creator and add some random string e.g, Maryx2, we use this to generate ID", value="Mary")
+                set_num = st.text_input("Enter the SET number - Ask Victor if you don't know, this is essentially the batch number", value="4")
+                df["ID"] = [f"{code_name}_Set_{set_num}_{i}" for i in range(len(df))]
+                df["Original Text"] = "unknown"
+                df["Creator's Name"] = st.text_input("Enter the Full Name of the Prompt Creator", value="Mary Magdalene")
+                df["domain"] = st.text_input("Enter the domain for these prompts (e.g., Health):", value="General")
+                df["Status"] = "pending"
+                df["pulled"] = False
+
+                # Save the processed file
+                if st.button("Process and Save"):
+                    processed_file_path = "processed_prompts.csv"
+                    df.reset_index(drop=True).to_csv(processed_file_path, index=False)
+                    st.session_state.processed_file_path = processed_file_path  # Save file path in session_state
+                    st.session_state.dataframe = df  # Save the dataframe in session_state
+                    st.success(f"File processed and saved as {processed_file_path}. Ready for upload.")
+                    st.write("Preview of Uploaded Data:")
+                    st.write(df.head())  # Show a preview of the uploaded file
+
+                # Upload to Firestore
+                if st.session_state.processed_file_path and st.button("Upload to Firestore"):
+                    st.session_state.upload_started = True
+                    with st.spinner("Uploading data to Firestore..."):
+                        progress_bar = st.progress(0)  # Initialize the progress bar
+                        total_rows = len(st.session_state.dataframe)  # Total number of rows to upload
+
+                        for index, row in enumerate(st.session_state.dataframe.iterrows(), start=1):
+                            _, data_row = row
+                            doc_id = data_row["ID"]
+                            data = {
+                                "OriginalText": data_row["Original Text"],
+                                "CodeSwitchedText": data_row["code-switched-text"],
+                                "CreatorName": data_row["Creator's Name"],
+                                "Status": data_row["Status"],
+                                "domain": data_row["domain"],
+                                "pulled": data_row["pulled"]
+                            }
+                            db.collection("stage_two_reviews").document(doc_id).set(data)
+
+                            # Update progress bar
+                            progress = int((index / total_rows) * 100)
+                            progress_bar.progress(progress)
+
+                    st.success("All data uploaded successfully!")
+                    st.session_state.upload_started = False  # Reset the upload state
