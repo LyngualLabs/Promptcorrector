@@ -62,7 +62,8 @@ def get_review_history(username, limit):
 def update_review(doc_id, edited_text):
     db.collection("stage_two_reviews").document(doc_id).update({
         "reviewed_text": edited_text,
-        "Timestamp": datetime.utcnow()
+        "Timestamp": datetime.utcnow(),
+        "Status": "edit"
     })
 
 # Function to fetch review data for analytics
@@ -106,6 +107,8 @@ if "processed_file_path" not in st.session_state:
     st.session_state.processed_file_path = None
 if "dataframe" not in st.session_state:
     st.session_state.dataframe = None
+if "new_text" not in st.session_state:
+    st.session_state.new_text = None
 
 
 if st.session_state.username is None:
@@ -193,11 +196,29 @@ else:
 
                 # Option to edit the record
                 if st.button(f"Edit Review - {record['doc_id']}"):
-                    new_text = st.text_area("Edit the Code-Switched Text:", record['reviewed_text'], key=record['doc_id'])
+                    # Set a flag in session state to indicate which record is being edited
+                    st.session_state.editing_record = record['doc_id']
+                    st.session_state.new_text = record['reviewed_text']
+
+                # Check if this record is being edited
+                if st.session_state.get('editing_record') == record['doc_id']:
+                    # Text area for editing the text
+                    st.session_state.new_text = st.text_area(
+                        "Edit the Code-Switched Text:", 
+                        st.session_state.new_text, 
+                        key=f"text_area_{record['doc_id']}"
+                    )
+                    
+                    # Button to save changes
                     if st.button(f"Save Changes - {record['doc_id']}"):
-                        update_review(record['doc_id'], new_text)
+                        # Perform the update
+                        update_review(record['doc_id'], st.session_state.new_text)
                         st.success("Review updated successfully!")
+                        
+                        # Clear the editing state
+                        del st.session_state.editing_record
                         st.rerun()
+
         else:
             st.write("No history available.")
 
@@ -211,10 +232,12 @@ else:
             original_review_data = review_data.copy()
             review_data = review_data[(review_data["reviewer"] != "unreviewed") & (review_data["Status"] != "reject")]
             status_count = review_data.groupby(['reviewer', 'Status']).size().unstack(fill_value=0)
-
+            status_count["sum"] = status_count["approve"] + status_count["edit"]
+            status_count = status_count.sort_values(by="sum").drop("sum", axis=1)
+            
             # Plotting
             fig, ax = plt.subplots(figsize=(10, 6))
-            bars = status_count.plot(kind='bar', stacked=True, ax=ax)
+            bars = status_count.plot(kind='barh', stacked=True, ax=ax, )
 
             # # Annotate bars with totals
             # for bar in bars.patches:
@@ -224,8 +247,8 @@ else:
 
             # Add titles and labels
             plt.title("Review Status by Reviewer", fontsize=16)
-            plt.xlabel("Reviewer", fontsize=12)
-            plt.ylabel("Number of Reviews", fontsize=12)
+            plt.ylabel("Reviewer", fontsize=12)
+            plt.xlabel("Number of Reviews", fontsize=12)
             plt.xticks(rotation=0)
             plt.legend(title="Status", fontsize=10)
             plt.tight_layout()
@@ -234,10 +257,11 @@ else:
             st.pyplot(fig)
             st.write("\n")
             st.write("Breakdown: Note that I've excluded your rejections, and this is data that has not been uploaded to the speech app")
+            st.write(f"Right now, {status_count.index[-1].title()} is on 🔥🔥")
 
             st.write(review_data["reviewer"].value_counts())
             # st.write(original_review_data)
-            unreviewed_df = original_review_data[original_review_data["reviewer"]=="unreviewed"]
+            unreviewed_df = original_review_data[(original_review_data["reviewer"]=="unreviewed") & (original_review_data["Status"] != "reject")]
             # st.write(unreviewed_df)
             st.write("Sum total is: ", str(review_data["reviewer"].value_counts().sum()), "prompts")
             st.write("Unreviwed Prompts: ", str(len(unreviewed_df)), "prompts")
