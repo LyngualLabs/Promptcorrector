@@ -1,4 +1,4 @@
 .env
 __pycache__
-.ipynb
-.mp3
+*.ipynb
+*.mp3
