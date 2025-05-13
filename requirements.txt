@@ -5,3 +5,4 @@ openai
 sounddevice
 librosa
 openpyxl
+nltk
