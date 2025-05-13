@@ -7,11 +7,13 @@ from datetime import datetime
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+from utils import light_tagger, tag, reverse_tag
 
 
 # dotenv.load_dotenv()
 
 openai_api_key = os.environ['openai_key']
+emotions = ["Happy", "Sad", "Angry", "Neutral", "Surprised", "Fearful", "Disgusted"]
 
 
 # Initialize Firebase if it hasn't been initialized yet
@@ -24,7 +26,7 @@ db = firestore.client()
 
 # Function to load the next review item
 def load_next_text():
-    docs = db.collection("stage_two_reviews").where("Status", "==", "pending").limit(1).stream()
+    docs = db.collection("stage_three_reviews").where("Status", "==", "pending").limit(1).stream()
     for doc in docs:
         return doc.id, doc.to_dict()
     return None, None
@@ -32,16 +34,16 @@ def load_next_text():
 # Function to save the review decision
 def save_review(doc_id, review_data):
     review_data["Timestamp"] = datetime.utcnow()  # Add a timestamp to the review
-    db.collection("stage_two_reviews").document(doc_id).update(review_data)
+    db.collection("stage_three_reviews").document(doc_id).update(review_data)
 
 # Function to get the count of reviews done by the reviewer
 def get_review_count(username):
-    docs = db.collection("stage_two_reviews").where("reviewer", "==", username).stream()
+    docs = db.collection("stage_three_reviews").where("reviewer", "==", username).stream()
     return sum(1 for _ in docs)
 
 # Function to get the history of prompts reviewed by the user
 def get_review_history(username, limit):
-    docs = db.collection("stage_two_reviews").where("reviewer", "==", username).stream()
+    docs = db.collection("stage_three_reviews").where("reviewer", "==", username).stream()
     history = []
     for doc in docs:
         data = doc.to_dict()
@@ -52,7 +54,9 @@ def get_review_history(username, limit):
                 "CodeSwitchedText": data.get("CodeSwitchedText"),
                 "reviewed_text": data.get("reviewed_text"),
                 "Status": data.get("Status"),
-                "Timestamp": data.get("Timestamp")
+                "Timestamp": data.get("Timestamp"),
+                "language_tags":data.get("language_tags"),
+                "emotions": data.get("emotions")
             })
     # Sort history by Timestamp in descending order and limit results
     sorted_history = sorted(history, key=lambda x: x["Timestamp"], reverse=True)
@@ -60,15 +64,22 @@ def get_review_history(username, limit):
 
 # Function to update a specific review
 def update_review(doc_id, edited_text):
-    db.collection("stage_two_reviews").document(doc_id).update({
+    db.collection("stage_three_reviews").document(doc_id).update({
         "reviewed_text": edited_text,
         "Timestamp": datetime.utcnow(),
         "Status": "edit"
     })
 
+def undo_review(doc_id):
+    db.collection("stage_three_reviews").document(doc_id).update({
+        "Timestamp": datetime.utcnow(),
+        "Status": "pending",
+        "reviewer": None
+    })
+
 # Function to fetch review data for analytics
 def fetch_review_data():
-    docs = db.collection("stage_two_reviews").stream()
+    docs = db.collection("stage_three_reviews").stream()
     data = []
     for doc in docs:
         record = doc.to_dict()
@@ -96,6 +107,66 @@ def play_audio(file_path):
         st.error(f"An unexpected error occurred: {e}")
 
 
+# Function to display the sentence with color-coding based on language tag
+def display_colored_sentence(word_tags):
+    colored_sentence = ""
+    
+    # Loop through the word-tags and create a color-coded sentence
+    for word, tag in word_tags:
+        if tag == 'en':
+            color = 'blue'  # English - Blue
+        else:
+            color = 'red'   # Yoruba - Red
+        
+        # Add the word to the sentence with the appropriate color
+        colored_sentence += f'<span style="color: {color};">{word}</span> '
+
+    return(colored_sentence)
+
+# Function to display the buttons below the sentence
+def display_buttons(word_tags):
+    max_buttons_per_row = 6  # Max buttons per row
+    num_cols = len(word_tags) if len(word_tags) < max_buttons_per_row else max_buttons_per_row
+    
+    # Create columns for button layout
+    cols = st.columns(num_cols)
+    
+    # Loop through the word-tags and create a button for each word
+    for i, (word, tag) in enumerate(word_tags):
+        # Assign a color based on the language tag
+        if tag == 'en':
+            color = 'blue'  # English - Blue
+        else:
+            color = 'red'   # Yoruba - Red
+        
+        # Create a button for each word in the appropriate column
+        col = cols[i % num_cols]  # Cycle through columns for the next word
+        with col:
+            button_text = f"{word}"
+            button = st.button(button_text, key=f"button_{i}")
+
+            # When the button is clicked, toggle the word's tag
+            if button:
+                toggle_tag(i)  # Toggle the tag for the word
+
+# Function to toggle language tag when a word is clicked
+def toggle_tag(word_index):
+    # Retrieve the current tag from the session state
+    current_word, current_tag = st.session_state.word_tags[word_index]
+    
+    # Toggle the tag between 'en' and 'yo'
+    new_tag = 'en' if current_tag == 'yo' else 'yo'
+    
+    # Update the word tag in session state
+    st.session_state.word_tags[word_index] = (current_word, new_tag)
+    st.rerun()
+    # st.write(f"Tag for '{current_word}' changed to {new_tag}")  # Optional: Show immediate feedback
+
+# Function to update the reflected text when the text area changes
+def update_reflection():
+    st.session_state.text_data["CodeSwitchedText"] = st.session_state.edited_text
+    st.session_state.word_tags = None
+
 # Streamlit App Layout
 if "username" not in st.session_state:
     st.session_state.username = None
@@ -109,6 +180,16 @@ if "dataframe" not in st.session_state:
     st.session_state.dataframe = None
 if "new_text" not in st.session_state:
     st.session_state.new_text = None
+if "new_emotions" not in st.session_state:
+    st.session_state.new_emotions = None
+if "new_tags" not in st.session_state:
+    st.session_state.new_tags = None
+
+if "word_tags" not in st.session_state:
+    st.session_state.word_tags = None
+
+if "text_data" not in st.session_state:
+    st.session_state.text_data = None
 
 
 if st.session_state.username is None:
@@ -142,36 +223,109 @@ else:
         review_count = get_review_count(st.session_state.username)
         st.sidebar.write(f"Reviews Completed: {review_count}")
 
+        st.markdown("### Review Process:")
+        with st.expander("Review and Emotion Selection Instructions"):
+            st.write("""
+                    ### Instructions for Reviewing Text:
+                    - **Editing**: Use the text box to edit the code-switched text if necessary. You can correct the sentence structure, grammar, or phrasing as needed to ensure clarity and correctness.
+                    
+                    - **Emotions**: Select one or more emotions from the list that best fit the tone of the sentence. You can select multiple emotions if the sentence has a mixed tone (e.g., both **Happy** and **Surprised**).
+
+                    - **Language Tagging**: As you review the text, you can click on the **buttons next to each word** to change its language tag. Words tagged as **English (blue)** can be switched to **Yoruba (red)**, and vice versa. This helps ensure the language tags are accurate for each word based on its language. You can toggle the tag between **English** and **Yoruba** by clicking the buttons. 
+
+                    - **Undo a Mistake**: If you submit a review by mistake, don't worry! You can go to the **History tab** to view your past reviews. If you need to, you can undo any review by clicking the **Undo Review** button for that specific entry. This will reset the review back to its initial "pending" state, allowing you to make corrections.
+
+                    - **Contact Victor for Help**: If you're unsure about anything or need assistance, please **contact Victor**. Don't hesitate to ask for help to ensure you're reviewing correctly and following the right steps.
+
+                    - **Important Note on Upload Prompts**: Do not go to the **Upload Prompts tab** if you're not sure about what you're doing. If you're unfamiliar with uploading prompts or setting batch numbers, please consult with Victor before proceeding. **Only go to this tab if you're confident in what you're uploading!**
+
+                    By following these steps, you'll help me stay sane mentally. Thank you for your careful review!
+                    """)
+
+
         # Load the next unreviewed text
         doc_id, text_data = load_next_text()
 
         if text_data:
+            if st.session_state.text_data== None:
+                st.session_state.text_data = text_data
+            corrected_tags = []
             # Display the Original Text, Code-Switched Text, and Creator's Name
-            st.title("Text Review")
-            st.write("#### Original Text")
-            st.write("###### " + text_data["OriginalText"])
-            st.write("Code-Switched Text")
-            st.write("##### " + text_data["CodeSwitchedText"])
+            # st.title("Text Review")
+            # st.write("#### Original Text")
+            # st.write("###### " + text_data["OriginalText"])
+            # st.write("Code-Switched Text")
+            # st.write("##### " + text_data["CodeSwitchedText"])
+            if st.session_state.word_tags==None:
+                tagged_words = light_tagger(st.session_state.text_data["CodeSwitchedText"])
+                st.session_state.word_tags = tagged_words
+            else:
+                tagged_words = st.session_state.word_tags
+                # st.session_state.word_tags = tagged_words
+            
+            # st.write("Click on a word's button below to change its language tag (blue = English, red = Yoruba)")
+
+            # Add the legend or indicator for language tags
+            # st.write("### Legend:")
+            import streamlit as st
+
+            # Create two columns
+            colA, colB = st.columns(2)
+
+            # Use the first column for the blue text
+            with colA:
+                st.markdown("<p style='color:blue;'>Blue = English</p>", unsafe_allow_html=True)
+
+            # Use the second column for the red text
+            with colB:
+                st.markdown("<p style='color:red;'>Red = Yorùbá</p>", unsafe_allow_html=True)
+
+            st.markdown(f"<h3>{display_colored_sentence(st.session_state.word_tags)}</h3>", unsafe_allow_html=True)
+
+            # Call the function to display the buttons
+            display_buttons(st.session_state.word_tags)
+
+            # with st.expander("More details"):
+            #     (st.write(dict(st.session_state.word_tags)))
             st.write("#### Creator's Name")
-            st.write(text_data["CreatorName"])
+            st.write(st.session_state.text_data["CreatorName"])
 
             st.write("### Review Actions")
             action = st.radio("Choose Action", ["Approve", "Edit", "Reject"])
+           
+            # Emotion multi-select dropdown
+            selected_emotions = st.multiselect(
+                        "Select the emotions in which this sentence should be read",
+                        emotions,
+                        default=['Neutral']  # Default to no emotions selected
+                    )
+
 
             # If the reviewer chooses "Edit", allow them to modify the text
             if action == "Edit":
-                edited_text = st.text_area("Edited Code-Switched Text", text_data["CodeSwitchedText"])
+                edited_text = st.text_area("Edited Code-Switched Text", st.session_state.text_data["CodeSwitchedText"],                                
+                                           key="edited_text",
+                               on_change=update_reflection)
+
+            #             # Loop through each word and its current language tag
+            # for word, lang in tagged_words:
+            #     corrected_lang = st.selectbox(f"Correct the language tag for '{word}'", ["en", "yo"], index=["en", "yo"].index(lang))
+            #     corrected_tags.append((word, corrected_lang))
 
             if st.button("Submit Review"):
                 review_data = {
                     "Status": action.lower(),
                     "reviewer": st.session_state.username,
-                    "reviewed_text": edited_text if action == "Edit" else text_data["CodeSwitchedText"],
+                    "reviewed_text": edited_text if action == "Edit" else st.session_state.text_data["CodeSwitchedText"],
+                    "emotions": selected_emotions,
+                    "language_tags": tag(st.session_state.word_tags)
                 }
                 save_review(doc_id, review_data)
 
                 # Confirmation and auto-reload to fetch the next item
                 st.success("Review submitted!")
+                st.session_state.word_tags=None
+                st.session_state.text_data = None
                 st.rerun()  # Reloads the app to show the next item
         else:
             st.write("No more texts to review.")
@@ -191,32 +345,41 @@ else:
                 st.write(f"**Original Text:** {record['OriginalText']}")
                 st.write(f"**Code-Switched Text:** {record['CodeSwitchedText']}")
                 st.write(f"**Your Reviewed Text:** {record['reviewed_text']}")
+                # st.write(str(record['language_tags']))
+                st.markdown(f"**Your Reviewed Text (Blue:Eng):** {display_colored_sentence(reverse_tag(record['language_tags']))}", unsafe_allow_html=True)
+                st.write(f"**Emotions:** {record['emotions']}")
                 st.write(f"**Status:** {record['Status']}")
                 st.write(f"**Timestamp:** {record['Timestamp']}")
 
-                # Option to edit the record
-                if st.button(f"Edit Review - {record['doc_id']}"):
-                    # Set a flag in session state to indicate which record is being edited
-                    st.session_state.editing_record = record['doc_id']
-                    st.session_state.new_text = record['reviewed_text']
+                # # Option to edit the record
+                # if st.button(f"Edit Review - {record['doc_id']}"):
+                #     # Set a flag in session state to indicate which record is being edited
+                #     st.session_state.editing_record = record['doc_id']
+                #     st.session_state.new_text = record['reviewed_text']
 
                 # Check if this record is being edited
-                if st.session_state.get('editing_record') == record['doc_id']:
-                    # Text area for editing the text
-                    st.session_state.new_text = st.text_area(
-                        "Edit the Code-Switched Text:", 
-                        st.session_state.new_text, 
-                        key=f"text_area_{record['doc_id']}"
-                    )
+                # if st.session_state.get('editing_record') == record['doc_id']:
+                #     # Text area for editing the text
+                #     st.session_state.new_text = st.text_area(
+                #         "Edit the Code-Switched Text:", 
+                #         st.session_state.new_text, 
+                #         key=f"text_area_{record['doc_id']}"
+                #     )
                     
-                    # Button to save changes
-                    if st.button(f"Save Changes - {record['doc_id']}"):
+                #     # Button to save changes
+                # if st.button(f"Save Changes - {record['doc_id']}"):
+                #         # Perform the update
+                #         update_review(record['doc_id'], st.session_state.new_text)
+                #         st.success("Review updated successfully!")
+                #         # Clear the editing state
+                #         del st.session_state.editing_record
+                #         st.rerun()
+                                    # Button to save changes
+                if st.button(f"Undo Review - {record['doc_id']}"):
                         # Perform the update
-                        update_review(record['doc_id'], st.session_state.new_text)
-                        st.success("Review updated successfully!")
-                        
+                        undo_review(record['doc_id'])
+                        st.success("Review undone successfully it'll go back to main page!")
                         # Clear the editing state
-                        del st.session_state.editing_record
                         st.rerun()
 
         else:
@@ -232,7 +395,10 @@ else:
             original_review_data = review_data.copy()
             review_data = review_data[(review_data["reviewer"] != "unreviewed") & (review_data["Status"] != "reject")]
             status_count = review_data.groupby(['reviewer', 'Status']).size().unstack(fill_value=0)
-            status_count["sum"] = status_count["approve"] + status_count["edit"]
+            try:
+                status_count["sum"] = status_count["approve"] + status_count["edit"]
+            except:
+                status_count["sum"] = status_count["approve"]
             status_count = status_count.sort_values(by="sum").drop("sum", axis=1)
             
             # Plotting
@@ -280,9 +446,9 @@ else:
         if uploaded_file:
             # Read the file based on its extension
             if uploaded_file.name.endswith(".xlsx"):
-                df = pd.read_excel(uploaded_file, header=None)
+                df = pd.read_excel(uploaded_file, header=None).head()
             elif uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file, header=None)
+                df = pd.read_csv(uploaded_file, header=None).head()
 
             st.write("Preview of Uploaded Data:")
             st.write(df.head())  # Show a preview of the uploaded file
@@ -344,7 +510,7 @@ else:
                                 "domain": data_row["domain"],
                                 "pulled": data_row["pulled"]
                             }
-                            db.collection("stage_two_reviews").document(doc_id).set(data)
+                            db.collection("stage_three_reviews").document(doc_id).set(data)
 
                             # Update progress bar
                             progress = int((index / total_rows) * 100)
