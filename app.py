@@ -123,31 +123,31 @@ def display_colored_sentence(word_tags):
 
     return(colored_sentence)
 
-# Function to display the buttons below the sentence
-def display_buttons(word_tags):
-    max_buttons_per_row = 6  # Max buttons per row
-    num_cols = len(word_tags) if len(word_tags) < max_buttons_per_row else max_buttons_per_row
-    
+# Function to dynamically display buttons below the sentence
+def display_buttons(word_tags, num_cols):
     # Create columns for button layout
     cols = st.columns(num_cols)
-    
+
     # Loop through the word-tags and create a button for each word
     for i, (word, tag) in enumerate(word_tags):
-        # Assign a color based on the language tag
-        if tag == 'en':
-            color = 'blue'  # English - Blue
-        else:
-            color = 'red'   # Yoruba - Red
+        # Assign color based on the language tag
+        if tag == 'en':  # English
+            color = 'blue'
+        else:  # Yoruba
+            color = 'red'
         
-        # Create a button for each word in the appropriate column
-        col = cols[i % num_cols]  # Cycle through columns for the next word
+        # Create button text with color or label (optional: add icons, tooltips)
+        button_text = f"{word}"
+        button_key = f"button_{i}"
+        
+        # Create the button in the corresponding column
+        col = cols[i % num_cols]  # Cycle through columns for each word
         with col:
-            button_text = f"{word}"
-            button = st.button(button_text, key=f"button_{i}")
+            button = st.button(button_text, key=button_key)
 
             # When the button is clicked, toggle the word's tag
             if button:
-                toggle_tag(i)  # Toggle the tag for the word
+                toggle_tag(i)  # This function will toggle between 'en' and 'yo'
 
 # Function to toggle language tag when a word is clicked
 def toggle_tag(word_index):
@@ -191,6 +191,9 @@ if "word_tags" not in st.session_state:
 if "text_data" not in st.session_state:
     st.session_state.text_data = None
 
+if "max_num_cols" not in st.session_state:
+    st.session_state.max_num_cols = 2
+
 
 if st.session_state.username is None:
     # Prompt user to enter their name
@@ -214,9 +217,17 @@ else:
     # Display the username and review count in the sidebar
     st.sidebar.title("Senior Reviewer")
     st.sidebar.write(f"Username: {st.session_state.username}")
+    
 
     # Navigation Menu
     page = st.sidebar.radio("Navigate", ["Review", "History", "Analytics", "Upload Prompts"])
+    st.session_state.max_num_cols = st.sidebar.slider(
+        "Select the number of columns for word buttons",
+        min_value=1,
+        max_value=10,  # You can adjust the max value based on your needs
+        value=7,  # Default value
+        step=1
+    )
 
     if page == "Review":
         # Get the review count for the current reviewer
@@ -283,7 +294,7 @@ else:
             st.markdown(f"<h3>{display_colored_sentence(st.session_state.word_tags)}</h3>", unsafe_allow_html=True)
 
             # Call the function to display the buttons
-            display_buttons(st.session_state.word_tags)
+            display_buttons(st.session_state.word_tags,st.session_state.max_num_cols)
 
             # with st.expander("More details"):
             #     (st.write(dict(st.session_state.word_tags)))
