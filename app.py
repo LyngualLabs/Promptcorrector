@@ -457,9 +457,9 @@ else:
         if uploaded_file:
             # Read the file based on its extension
             if uploaded_file.name.endswith(".xlsx"):
-                df = pd.read_excel(uploaded_file, header=None).head()
+                df = pd.read_excel(uploaded_file, header=None)
             elif uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file, header=None).head()
+                df = pd.read_csv(uploaded_file, header=None)
 
             st.write("Preview of Uploaded Data:")
             st.write(df.head())  # Show a preview of the uploaded file
