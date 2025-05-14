@@ -8,6 +8,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 from utils import light_tagger, tag, reverse_tag
+import random
 
 
 # dotenv.load_dotenv()
@@ -24,12 +25,24 @@ if not _apps:
 
 db = firestore.client()
 
-# Function to load the next review item
+# Function to load the next review item from a batch of 20 random documents
 def load_next_text():
-    docs = db.collection("stage_three_reviews").where("Status", "==", "pending").limit(1).stream()
-    for doc in docs:
-        return doc.id, doc.to_dict()
-    return None, None
+    # Fetch a batch of 20 documents where Status is "pending"
+    docs = db.collection("stage_three_reviews").where("Status", "==", "pending").limit(20).stream()
+
+    # Convert Firestore documents to a list
+    doc_list = [doc for doc in docs]
+
+    # If there are any documents available
+    if doc_list:
+        # Randomly pick one document
+        random_doc = random.choice(doc_list)
+        doc_id = random_doc.id
+        doc_data = random_doc.to_dict()
+
+        return doc_id, doc_data
+    else:
+        return None, None
 
 # Function to save the review decision
 def save_review(doc_id, review_data):
@@ -191,6 +204,9 @@ if "word_tags" not in st.session_state:
 if "text_data" not in st.session_state:
     st.session_state.text_data = None
 
+if "doc_id" not in st.session_state:
+    st.session_state.doc_id = None
+
 if "max_num_cols" not in st.session_state:
     st.session_state.max_num_cols = 2
 
@@ -260,6 +276,7 @@ else:
         if text_data:
             if st.session_state.text_data== None:
                 st.session_state.text_data = text_data
+                st.session_state.doc_id = doc_id
             corrected_tags = []
             # Display the Original Text, Code-Switched Text, and Creator's Name
             # st.title("Text Review")
@@ -332,7 +349,7 @@ else:
                     "emotions": selected_emotions,
                     "language_tags": tag(st.session_state.word_tags)
                 }
-                save_review(doc_id, review_data)
+                save_review(st.session_state.doc_id, review_data)
 
                 # Confirmation and auto-reload to fetch the next item
                 st.success("Review submitted!")
