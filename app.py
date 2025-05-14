@@ -510,6 +510,7 @@ else:
                 df["domain"] = st.text_input("Enter the domain for these prompts (e.g., Health):", value="General")
                 df["Status"] = "pending"
                 df["pulled"] = False
+                df["code-switched-text"] = df["code-switched-text"].strip('"')
 
                 # Save the processed file
                 if st.button("Process and Save"):
