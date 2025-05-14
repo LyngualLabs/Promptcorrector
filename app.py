@@ -267,6 +267,7 @@ else:
             # st.write("###### " + text_data["OriginalText"])
             # st.write("Code-Switched Text")
             # st.write("##### " + text_data["CodeSwitchedText"])
+            st.session_state.text_data["CodeSwitchedText"] = st.session_state.text_data["CodeSwitchedText"].strip('"')
             if st.session_state.word_tags==None:
                 tagged_words = light_tagger(st.session_state.text_data["CodeSwitchedText"])
                 st.session_state.word_tags = tagged_words
