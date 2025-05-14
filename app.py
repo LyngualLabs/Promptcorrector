@@ -484,7 +484,7 @@ else:
 
                 # Prepare data
                 df.columns = ["code-switched-text"]
-                code_name = st.text_input("Enter the nick name or first name of the Prompt Creator and add some random string e.g, Maryx2, we use this to generate ID", value="Mary")
+                code_name = st.text_input("Enter the nick name or first name of the Prompt Creator and add the current data and time e.g, Mary140520250115, we use this to generate ID", value="Mary140520250115")
                 set_num = st.text_input("Enter the SET number - Ask Victor if you don't know, this is essentially the batch number", value="4")
                 df["ID"] = [f"{code_name}_Set_{set_num}_{i}" for i in range(len(df))]
                 df["Original Text"] = "unknown"
