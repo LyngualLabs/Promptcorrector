@@ -215,7 +215,7 @@ if st.session_state.username is None:
     # Prompt user to enter their name
     st.title("Welcome to the Senior Reviewer App")
     st.write("Please enter your name to begin the review session.")
-    username = st.text_input("Your Name").lower()
+    username = st.text_input("Your Name").lower().strip()
 
     if st.button("Start Review Session"):
         if username:
