@@ -28,7 +28,7 @@ db = firestore.client()
 # Function to load the next review item from a batch of 20 random documents
 def load_next_text():
     # Fetch a batch of 20 documents where Status is "pending"
-    docs = db.collection("stage_three_reviews").where("Status", "==", "pending").limit(20).stream()
+    docs = db.collection("stage_four_reviews").where("Status", "==", "pending").limit(20).stream()
 
     # Convert Firestore documents to a list
     doc_list = [doc for doc in docs]
@@ -47,16 +47,16 @@ def load_next_text():
 # Function to save the review decision
 def save_review(doc_id, review_data):
     review_data["Timestamp"] = datetime.utcnow()  # Add a timestamp to the review
-    db.collection("stage_three_reviews").document(doc_id).update(review_data)
+    db.collection("stage_four_reviews").document(doc_id).update(review_data)
 
 # Function to get the count of reviews done by the reviewer
 def get_review_count(username):
-    docs = db.collection("stage_three_reviews").where("reviewer", "==", username).stream()
+    docs = db.collection("stage_four_reviews").where("reviewer", "==", username).stream()
     return sum(1 for _ in docs)
 
 # Function to get the history of prompts reviewed by the user
 def get_review_history(username, limit):
-    docs = db.collection("stage_three_reviews").where("reviewer", "==", username).stream()
+    docs = db.collection("stage_four_reviews").where("reviewer", "==", username).stream()
     history = []
     for doc in docs:
         data = doc.to_dict()
@@ -77,14 +77,14 @@ def get_review_history(username, limit):
 
 # Function to update a specific review
 def update_review(doc_id, edited_text):
-    db.collection("stage_three_reviews").document(doc_id).update({
+    db.collection("stage_four_reviews").document(doc_id).update({
         "reviewed_text": edited_text,
         "Timestamp": datetime.utcnow(),
         "Status": "edit"
     })
 
 def undo_review(doc_id):
-    db.collection("stage_three_reviews").document(doc_id).update({
+    db.collection("stage_four_reviews").document(doc_id).update({
         "Timestamp": datetime.utcnow(),
         "Status": "pending",
         "reviewer": None
@@ -92,7 +92,7 @@ def undo_review(doc_id):
 
 # Function to fetch review data for analytics
 def fetch_review_data():
-    docs = db.collection("stage_three_reviews").stream()
+    docs = db.collection("stage_four_reviews").stream()
     data = []
     for doc in docs:
         record = doc.to_dict()
@@ -540,7 +540,7 @@ else:
                                 "domain": data_row["domain"],
                                 "pulled": data_row["pulled"]
                             }
-                            db.collection("stage_three_reviews").document(doc_id).set(data)
+                            db.collection("stage_four_reviews").document(doc_id).set(data)
 
                             # Update progress bar
                             progress = int((index / total_rows) * 100)
